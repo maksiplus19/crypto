@@ -2,3 +2,6 @@ tmp.py
 .idea/
 *.pyc
 venv/
+*.crypto
+*.decrypto
+*.pdf
