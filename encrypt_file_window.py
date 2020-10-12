@@ -127,7 +127,7 @@ class MainWindow(QMainWindow, Ui_CryptoWindow):
                     os.system(f'"{widget.decryptedFile}"')
 
     def file_dont_exist(self):
-        QMessageBox.information(self, 'Сщщбщение', 'Невозможно открыть файл, так как он еще не был создан')
+        QMessageBox.information(self, 'Сообщение', 'Невозможно открыть файл, так как он еще не был создан')
 
     def remove_crypto_widget(self, file: str):
         self.widgetSpace.removeWidget(self.crypto_widget_list[file])
