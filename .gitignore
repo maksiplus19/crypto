@@ -8,3 +8,5 @@ venv/
 /_decrypted.gitignore
 tmp*.py
 /tmp1.py
+*.zip
+*.txt

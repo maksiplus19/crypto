@@ -48,15 +48,34 @@ class CryptoMode:
     @staticmethod
     def block_chain(alg: Algo, prev_chunk: Optional[bytes], chunk: Optional[bytes], prev_encrypted: Optional[bytes],
                     key: str, decryption: bool) -> bytes:
-        """Сцепление блоков шифротекста"""
+        """Сцепление блоков шифротекста(ошибка)"""
         if prev_encrypted is None:
             rnd.seed(key)
-            prev_chunk = bytes(''.join(rnd.choices(symbols, k=len(chunk))), encoding='utf8')
-        xor = []
-        for i, j in zip(chunk, prev_chunk):
-            xor.append(int(i ^ j).to_bytes(1, 'big', signed=False))
-        chunk = b''.join(xor)
-        return alg.execute(chunk, key, decryption)
+            prev_encrypted = bytes(''.join(rnd.choices(symbols, k=len(chunk))), encoding='utf8')
+        if len(prev_encrypted) != len(chunk):
+            prev_encrypted = prev_encrypted[:len(chunk)]
+        if decryption:
+            chunk = (np.array(bytearray(prev_encrypted), dtype=np.int8) ^ np.array(bytearray(chunk),
+                                                                                   dtype=np.int8)).tobytes()
+            return alg.execute(chunk, key, decryption)
+        else:
+            chunk = alg.execute(chunk, key, decryption)
+            return (np.array(bytearray(prev_encrypted), dtype=np.int8) ^ np.array(bytearray(chunk),
+                                                                                  dtype=np.int8)).tobytes()
+        # if decryption:
+        #     chunk = b''.join(int(i ^ j).to_bytes(1, 'big', signed=False) for i, j in zip(prev_chunk, alg.execute(chunk, key, decryption)))
+        #     return chunk
+        # chunk = b''.join(int(i ^ j).to_bytes(1, 'big', signed=False) for i, j in zip(chunk, prev_chunk))
+
+    @staticmethod
+    def feedback(alg: Algo, prev_chunk: Optional[bytes], chunk: Optional[bytes], prev_encrypted: Optional[bytes],
+                 key: str, decryption: bool) -> bytes:
+        """Обратная связь по шифротексту(тут тоже ошибка ¯\_(ツ)_/¯)"""
+        if prev_encrypted is None:
+            rnd.seed(key)
+            prev_encrypted = bytes(''.join(rnd.choices(symbols, k=len(chunk))), encoding='utf8')
+        return b''.join(int(i ^ j).to_bytes(1, 'big', signed=False) for i, j in
+                        zip(alg.execute(prev_encrypted, key, decryption), chunk))
 
 
 class DES(Algo):
@@ -138,55 +157,47 @@ class DES(Algo):
 
 class RC4(Algo):
     """RC4"""
-    _batch_size_degree = 13
-    _size = 2**_batch_size_degree
+    _n = 16
     _S = None
 
     @staticmethod
     def batch_size() -> int:
-        return 2**(RC4._batch_size_degree - 3)
-
-    @staticmethod
-    def set_batch_size(bit_size: int):
-        """n_size is power of 2\nbatch size wil be 2**n_size"""
-        if bit_size < 3:
-            raise ValueError(f'Too low {bit_size = }')
-        RC4._batch_size_degree = bit_size
-        RC4._size = 2 ** RC4._batch_size_degree
+        return 1024
 
     @staticmethod
     def gen_key():
         def gen():
             i, j = 0, 0
             while True:
-                i = (i + 1) % RC4._size
-                j = (j + RC4._S[i]) % RC4._size
+                i = (i + 1) % 2 ** RC4._n
+                j = (j + RC4._S[i]) % 2 ** RC4._n
                 RC4._S[i], RC4._S[j] = RC4._S[j], RC4._S[i]
-                yield RC4._S[(RC4._S[i] + RC4._S[j]) % RC4._size]
+                yield int(RC4._S[(RC4._S[i] + RC4._S[j]) % 2 ** RC4._n])
+
         return gen()
 
     _gen = None
 
     @staticmethod
     def execute(block: Block, key: Union[str, np.array], decrypt: bool = False) -> Block:
-        k = next(RC4._gen)
-        k = cast(int, k)
-        bts = np.array(bytearray(k.to_bytes(RC4.batch_size(), 'big')))
-        block = np.array(bytearray(block))
-        res = bts ^ block
+        k = []
+        for i in range(len(block) // 2 + 1):
+            word = int(next(RC4._gen)).to_bytes(2, 'big')
+            k.extend([word[:1][0], word[1:][0]])
+        k = k[:len(block)]
+        res = np.array(k, dtype=np.int8) ^ np.array(bytearray(block), dtype=np.int8)
         return res.tobytes()
-
 
     @staticmethod
     def setup(param: Dict):
         key = param['key']
         cast(str, key)
         j = 0
-        RC4._S = np.arange(0, RC4._size, 1)
+        RC4._S = np.arange(0, 2 ** RC4._n, 1)
         k_len = len(key)
         RC4._S = list(RC4._S)
-        for i in range(RC4._size):
-            j = (j + RC4._S[i] + ord(key[i % k_len])) % RC4._size
+        for i in range(2 ** RC4._n):
+            j = (j + RC4._S[i] + ord(key[i % k_len])) % 2 ** RC4._n
             RC4._S[i], RC4._S[j] = RC4._S[j], RC4._S[i]
         RC4._S = np.array(RC4._S)
         RC4._gen = RC4.gen_key()
@@ -316,5 +327,6 @@ class AlgorithmConnect:
 
     mode_connect = {
         CryptoMode.electronic_codebook.__doc__: CryptoMode.electronic_codebook,
-        CryptoMode.block_chain.__doc__: CryptoMode.block_chain
+        CryptoMode.block_chain.__doc__: CryptoMode.block_chain,
+        CryptoMode.feedback.__doc__: CryptoMode.feedback
     }
