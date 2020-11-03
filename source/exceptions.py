@@ -29,3 +29,18 @@ class NotEnoughParamsException(ParamException):
 
     def __str__(self):
         return f'Not enough params got {self.get} instead of {self.need}'
+
+
+class CryptoException(Exception):
+    def __init__(self):
+        super(CryptoException, self).__init__()
+
+
+class CryptoKeyError(CryptoException):
+    def __init__(self, key_len: int, expected_len: int):
+        super(CryptoKeyError, self).__init__()
+        self.k_len = key_len
+        self.e_len = expected_len
+
+    def __str__(self):
+        return f'Key has wrong len. Expected len {self.e_len} got {self.k_len}'

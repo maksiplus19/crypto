@@ -4,26 +4,31 @@ from copy import copy
 from threading import Thread
 from typing import List, cast
 
-from PyQt5.QtCore import QObject, Qt
+from PyQt5.QtCore import Qt, pyqtSignal, QObject
 from PyQt5.QtGui import QIcon
-from PyQt5.QtWidgets import QApplication, QMainWindow, QLineEdit, QDialog, QFileDialog, QMessageBox, QPushButton
+from PyQt5.QtWidgets import QApplication, QMainWindow, QLineEdit, QFileDialog, QMessageBox, QPushButton
 
+from source.algorithms import AlgorithmConnect, BaseAlgorithm, CryptoMode
 from source.data import ENCRYPTED_FILE_EXTENSION
-from ui.crypto_window import Ui_CryptoWindow
+from source.signals import UpdateSignal
 from ui.crypto_file_widget import Ui_CryptoWidget
+from ui.crypto_window import Ui_CryptoWindow
 from ui.open_file_choice import Ui_ChoiceDialog
-from source.crypto_algorithm import Algorithm
 
 
 class MainWindow(QMainWindow, Ui_CryptoWindow):
     def __init__(self):
         super(MainWindow, self).__init__()
         self.setupUi(self)
+        self.setWindowIcon(QIcon('./icons8-protect-64.png'))
         self.visible_icon = QIcon('./ui/icons8-eye-24.png')
         self.invisible_icon = QIcon('./ui/icons8-invisible-24.png')
         self.passShowButton.setIcon(self.invisible_icon)
         self.passShowButton.clicked.connect(self.vis_invis_change)
-        self.algoBox.addItem(Algorithm.vernam_cipher.__doc__)
+        for item in AlgorithmConnect.reverse_connect:
+            self.algoBox.addItem(item)
+        for item in AlgorithmConnect.mode_connect:
+            self.modeBox.addItem(item)
         self.addFile.triggered.connect(self.add_file)
         self.crypto_widget_list = {}
 
@@ -56,38 +61,41 @@ class MainWindow(QMainWindow, Ui_CryptoWindow):
         widget.workButton.clicked.connect(self.en_decrypt_file)
 
     def en_decrypt_file(self, state: bool):  # state = True -- encrypt
-        def thread_part(widget: Ui_CryptoWidget, s_state: bool):
-            # widget = cast(Ui_CryptoWidget, widget)
-            try:
-                file_name = widget.originalFile if s_state else widget.encryptedFile
-                widget.progressBar.setVisible(True)
-                file = Algorithm.reverse_connect[self.current_algo](file_name, key, widget.progressBar.setValue,
-                                                                    decryption=not s_state)
-                widget.progressBar.setVisible(False)
-                if file is None:
-                    if s_state:
-                        QMessageBox.information(self, 'Ошибка', 'Не удалось найти входной файл')
-                        widget.workButton.setChecked(not s_state)
-                        widget.workButton.setText('Зашифровать' if s_state else 'Дешифровать')
-                    else:
-                        QMessageBox.information(self, 'Ошибка', 'Не удалось найти зашифрованный файл\n'
-                                                                'Файл будет зашифрован повторно')
-                        file = Algorithm.reverse_connect[self.current_algo](file_name, key, widget.progressBar.setValue,
-                                                                            decryption=not s_state)
-                        if file is None:
-                            QMessageBox.critical(self, 'Ошибка', 'Похоже файл потерян окончательно'
-                                                                 'Файл будет удален из списка')
-                            self.remove_crypto_widget(file_name)
-                        else:
-                            widget.encryptedFile = file
+        def thread_part(thread_widget: Ui_CryptoWidget, s_state: bool, s_signal):
+            file_name = thread_widget.originalFile if s_state else thread_widget.encryptedFile
+            thread_widget.progressBar.setVisible(True)
+            extension = thread_widget.originalFile.rsplit('.', 1)[-1]
+            mode = AlgorithmConnect.mode_connect[self.modeBox.currentText()]
+            alg = AlgorithmConnect.reverse_connect[self.algoBox.currentText()]
+
+            file = BaseAlgorithm.encrypt_decrypt(file_name, mode, alg, s_signal, self.passEdit.text(),
+                                                 decryption=not s_state, ext=extension)
+            thread_widget.progressBar.setVisible(False)
+
+            if file is None:
+                if s_state:
+                    QMessageBox.information(self, 'Ошибка', 'Не удалось найти входной файл')
+                    thread_widget.workButton.setChecked(not s_state)
+                    thread_widget.workButton.setText('Зашифровать' if s_state else 'Дешифровать')
                 else:
-                    widget.workButton.setText('Дешифровать' if s_state else 'Зашифровать')
-                    if s_state:
-                        widget.encryptedFile = file
+                    QMessageBox.information(self, 'Ошибка', 'Не удалось найти зашифрованный файл\n'
+                                                            'Файл будет зашифрован повторно')
+                    thread_widget.progressBar.setVisible(True)
+                    file = BaseAlgorithm.encrypt_decrypt(thread_widget.originalFile, mode, alg, s_signal,
+                                                         self.passEdit.text(), decryption=False, ext=extension)
+                    thread_widget.progressBar.setVisible(False)
+                    if file is None:
+                        QMessageBox.critical(self, 'Ошибка', 'Похоже файл потерян окончательно'
+                                                             'Файл будет удален из списка')
+                        self.remove_crypto_widget(file_name)
                     else:
-                        widget.decryptedFile = file
-            except Exception as e:
-                print(e)
+                        thread_widget.encryptedFile = file
+            else:
+                thread_widget.workButton.setText('Дешифровать' if s_state else 'Зашифровать')
+                if s_state:
+                    thread_widget.encryptedFile = file
+                else:
+                    thread_widget.decryptedFile = file
 
         key = self.passEdit.text()
         if key == '':
@@ -98,7 +106,10 @@ class MainWindow(QMainWindow, Ui_CryptoWindow):
             button.setText('Зашифровать')
             return
         widget = self.sender().parent()
-        thread = Thread(target=thread_part, args=(widget, state), daemon=True)
+        widget = cast(Ui_CryptoWidget, widget)
+        signal = UpdateSignal()
+        signal.update.connect(widget.progressBar.setValue)
+        thread = Thread(target=thread_part, args=(widget, state, signal), daemon=True)
         thread.start()
 
     @property

@@ -82,7 +82,7 @@ class Ui_CryptoWindow(object):
 
     def retranslateUi(self, CryptoWindow):
         _translate = QtCore.QCoreApplication.translate
-        CryptoWindow.setWindowTitle(_translate("CryptoWindow", "MainWindow"))
+        CryptoWindow.setWindowTitle(_translate("CryptoWindow", "Шифрование файлов"))
         self.passShowButton.setText(_translate("CryptoWindow", "..."))
         self.menu.setTitle(_translate("CryptoWindow", "Файл"))
         self.addFile.setText(_translate("CryptoWindow", "Добавить файл"))

@@ -5,3 +5,6 @@ venv/
 *.crypto
 *.decrypto
 *.pdf
+/_decrypted.gitignore
+tmp*.py
+/tmp1.py

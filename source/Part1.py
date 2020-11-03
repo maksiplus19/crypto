@@ -25,8 +25,7 @@ def bin_dots(num: int) -> str:
 def bit_not(num: int, size: int = None) -> int:
     if size is None:
         return num ^ ((1 << num.bit_length()) - 1)
-    else:
-        return num ^ ((1 << size) - 1)
+    return num ^ ((1 << size) - 1)
 
 
 def task1(a: int, params: str) -> List:
@@ -154,7 +153,7 @@ def task8(a: int, params: str) -> List:
     перестановку """
 
     def get_bit(num: int, bit: int):
-        return num & (1 << bit) != 0
+        return (num >> bit) & 1
 
     params = split_params(params)
     result = 0
