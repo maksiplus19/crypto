@@ -48,34 +48,50 @@ class CryptoMode:
     @staticmethod
     def block_chain(alg: Algo, prev_chunk: Optional[bytes], chunk: Optional[bytes], prev_encrypted: Optional[bytes],
                     key: str, decryption: bool) -> bytes:
-        """Сцепление блоков шифротекста(ошибка)"""
-        if prev_encrypted is None:
+        """Сцепление блоков шифротекста"""
+        second_chunk = prev_chunk if decryption else prev_encrypted
+        if second_chunk is None:
             rnd.seed(key)
-            prev_encrypted = bytes(''.join(rnd.choices(symbols, k=len(chunk))), encoding='utf8')
-        if len(prev_encrypted) != len(chunk):
-            prev_encrypted = prev_encrypted[:len(chunk)]
+            second_chunk = bytes(''.join(rnd.choices(symbols, k=alg.batch_size())), encoding='utf8')
+        trash = alg.batch_size() - len(chunk)
+        if trash:
+            chunk += b'\x00' * trash
         if decryption:
-            chunk = (np.array(bytearray(prev_encrypted), dtype=np.int8) ^ np.array(bytearray(chunk),
-                                                                                   dtype=np.int8)).tobytes()
-            return alg.execute(chunk, key, decryption)
+            chunk = (np.array(bytearray(second_chunk), dtype=np.int8) ^ np.array(bytearray(chunk),
+                                                                                 dtype=np.int8)).tobytes()
+            res = alg.execute(chunk, key, decryption)
+            trash = r_solid_index(res, b'\x00')
+            if trash:
+                res = res[:trash]
         else:
             chunk = alg.execute(chunk, key, decryption)
-            return (np.array(bytearray(prev_encrypted), dtype=np.int8) ^ np.array(bytearray(chunk),
-                                                                                  dtype=np.int8)).tobytes()
-        # if decryption:
-        #     chunk = b''.join(int(i ^ j).to_bytes(1, 'big', signed=False) for i, j in zip(prev_chunk, alg.execute(chunk, key, decryption)))
-        #     return chunk
-        # chunk = b''.join(int(i ^ j).to_bytes(1, 'big', signed=False) for i, j in zip(chunk, prev_chunk))
+            res = (np.array(bytearray(second_chunk), dtype=np.uint8) ^ np.array(bytearray(chunk),
+                                                                                dtype=np.uint8)).tobytes()
+        if decryption:
+            trash = r_solid_index(res, b'\x00')
+            if trash:
+                res = res[:trash]
+        return res
 
     @staticmethod
     def feedback(alg: Algo, prev_chunk: Optional[bytes], chunk: Optional[bytes], prev_encrypted: Optional[bytes],
                  key: str, decryption: bool) -> bytes:
-        """Обратная связь по шифротексту(тут тоже ошибка ¯\_(ツ)_/¯)"""
-        if prev_encrypted is None:
+        """Обратная связь по шифротексту"""
+        second_chunk = prev_chunk if decryption else prev_encrypted
+        if second_chunk is None:
             rnd.seed(key)
-            prev_encrypted = bytes(''.join(rnd.choices(symbols, k=len(chunk))), encoding='utf8')
-        return b''.join(int(i ^ j).to_bytes(1, 'big', signed=False) for i, j in
-                        zip(alg.execute(prev_encrypted, key, decryption), chunk))
+            second_chunk = bytes(''.join(rnd.choices(symbols, k=alg.batch_size())), encoding='utf8')
+        trash = alg.batch_size() - len(chunk)
+        if trash:
+            chunk += b'\x00' * trash
+        second_chunk = alg.execute(second_chunk, key)
+        res = (np.array(bytearray(second_chunk), dtype=np.uint8) ^ np.array(bytearray(chunk),
+                                                                            dtype=np.uint8)).tobytes()
+        if decryption:
+            trash = r_solid_index(res, b'\x00')
+            if trash:
+                res = res[:trash]
+        return res
 
 
 class DES(Algo):
@@ -92,10 +108,6 @@ class DES(Algo):
     @staticmethod
     def teardown():
         pass
-
-    # @staticmethod
-    # def __enter__():
-    #     pass
 
     @staticmethod
     def gen_key(key: str) -> List[np.array]:
@@ -274,48 +286,6 @@ class BaseAlgorithm:
                     signal.update.emit(int(progress / file_size * 100))
         alg.teardown()
         return output_file
-
-    #
-    # @staticmethod
-    # def __des_gen_keys(k: str) -> List:
-    #     pass
-    #
-    # @staticmethod
-    # def __des_f_crypt(block, r_key) -> np.array:
-    #     pass
-    #
-    # @staticmethod
-    # def DES(input_file: str, key: str, update: UpdateSignal, *, ext: str, decryption: bool = False,
-    #         mode: Callable[[np.array, np.array], np.array]):
-    #     """Алгоритм DES"""
-    #     output_file = input_file.rsplit('.', maxsplit=1)
-    #     output_file[-1] = ext if decryption else ENCRYPTED_FILE_EXTENSION
-    #     output_file = '.'.join(output_file)
-    #     if not os.path.exists(input_file):
-    #         return None
-    #
-    #     keys = gen_keys(key)
-    #     # keys = [bytearray(''.join(rnd.choices(symbols, k=len(chunk))), encoding='utf8') for i in range(16)]
-    #     prev_res = None
-    #     with open(input_file, mode='rb') as in_file:
-    #         with open(output_file, mode='wb') as out_file:
-    #             for chunk in iter(partial(in_file.read, 8), b''):
-    #                 pass
-    #
-    # @staticmethod
-    # def __des_round(chunk: bytes, decryption: bool, key: np.array):
-    #     p_chunk = BaseAlgorithm.__des_permutation(int.from_bytes(chunk, 'big', signed=False),
-    #                                               des_data.DES_IP_INV if decryption else des_data.DES_IP)
-    #     p_chunk = np.array(bytearray(p_chunk.to_bytes(8, 'big', signed=False)))
-    #     left, right = None, None
-    #     for i in range(16):
-    #         if decryption:
-    #             left, right = p_chunk[4:] ^ BaseAlgorithm.__des_f_crypt(p_chunk[:4], key), p_chunk[:4]
-    #         else:
-    #             left, right = p_chunk[4:], p_chunk[:4] ^ BaseAlgorithm.__des_f_crypt(p_chunk[4:], key)
-    #         p_chunk = np.concatenate([left, right])
-    #     res = BaseAlgorithm.__des_permutation(int.from_bytes(p_chunk, 'big', signed=False),
-    #                                           des_data.DES_IP_INV if decryption else des_data.DES_IP)
 
 
 class AlgorithmConnect:
