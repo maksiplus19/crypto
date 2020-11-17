@@ -65,7 +65,7 @@ def permutation(num: int, perm: Union[List, np.array]) -> int:
     result = 0
     for k in perm:
         result <<= 1
-        result |= (num >> (k-1)) & 1
+        result |= (num >> (k - 1)) & 1
     return result
 
 
@@ -76,3 +76,10 @@ def arr_permutation(arr: Union[List, np.array], perm: List) -> Union[List, np.ar
     if isinstance(arr, np.ndarray):
         res = np.array(res)
     return res
+
+
+def r_solid_index(s: Union[str, bytes], char: Union[str, bytes]) -> int:
+    i = len(s) - 1
+    while i and s[i] == char:
+        i -= 1
+    return i + 1
