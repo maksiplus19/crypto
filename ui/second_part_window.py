@@ -39,6 +39,7 @@ class Ui_SecondPartWindow(object):
         self.combo_box.setObjectName("combo_box")
         self.verticalLayout.addWidget(self.combo_box)
         self.plain_text_edit = QtWidgets.QPlainTextEdit(self.centralwidget)
+        self.plain_text_edit.setReadOnly(True)
         self.plain_text_edit.setObjectName("plain_text_edit")
         self.verticalLayout.addWidget(self.plain_text_edit)
         SecondPartWindow.setCentralWidget(self.centralwidget)

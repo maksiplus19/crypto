@@ -47,7 +47,11 @@
      <widget class="QComboBox" name="combo_box"/>
     </item>
     <item>
-     <widget class="QPlainTextEdit" name="plain_text_edit"/>
+     <widget class="QPlainTextEdit" name="plain_text_edit">
+      <property name="readOnly">
+       <bool>true</bool>
+      </property>
+     </widget>
     </item>
    </layout>
   </widget>
