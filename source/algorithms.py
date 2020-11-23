@@ -1,11 +1,11 @@
 import os
-import random as rnd
 from functools import partial, lru_cache
 from typing import Optional, Callable, Dict
 
 from source import des_data
 from source.data import *
 from source.exceptions import CryptoKeyError
+from source.part2 import inverse_mod, binary_power_mod
 from source.signals import UpdateSignal
 from source.support_func import *
 
@@ -19,7 +19,7 @@ Block = Union[bytes]
 
 class Algo:
     @staticmethod
-    def batch_size() -> int:
+    def batch_size(decrypt: bool = False) -> int:
         raise NotImplementedError
 
     @staticmethod
@@ -98,7 +98,7 @@ class DES(Algo):
     """DES"""
 
     @staticmethod
-    def batch_size() -> int:
+    def batch_size(decrypt: bool = False) -> int:
         return 8
 
     @staticmethod
@@ -173,7 +173,7 @@ class RC4(Algo):
     _S = None
 
     @staticmethod
-    def batch_size() -> int:
+    def batch_size(decrypt: bool = False) -> int:
         return 1024
 
     @staticmethod
@@ -213,6 +213,40 @@ class RC4(Algo):
             RC4._S[i], RC4._S[j] = RC4._S[j], RC4._S[i]
         RC4._S = np.array(RC4._S)
         RC4._gen = RC4.gen_key()
+
+
+class RSA(Algo):
+    """RSA"""
+
+    @staticmethod
+    def batch_size(decrypt: bool = False) -> int:
+        if decrypt:
+            return 4
+        return 2
+
+    @staticmethod
+    def execute(block: Block, key: Union[str, np.array], decrypt: bool = False) -> Block:
+        p, q = get_rnd_prime(key), get_rnd_prime()
+        n = p * q
+        phi_num = (p - 1) * (q - 1)
+        rnd.seed(key)
+        e = phi_num // 2
+        while (d := inverse_mod(e, phi_num)) is None:
+            e -= 1
+        m = int.from_bytes(block, 'big', signed=False)
+        print(f'{m=}')
+        res = binary_power_mod(m, d if decrypt else e, n)
+        print(f'r={res}')
+        print(f'{p=} {q=} {e=} {d=}')
+        return res.to_bytes(RSA.batch_size(not decrypt), 'big', signed=False)
+
+    @staticmethod
+    def setup(param: Dict):
+        pass
+
+    @staticmethod
+    def teardown():
+        pass
 
 
 class BaseAlgorithm:
@@ -270,7 +304,7 @@ class BaseAlgorithm:
 
         file_size = os.path.getsize(input_file)
         progress = 0
-        batch_size = alg.batch_size()
+        batch_size = alg.batch_size(decryption)
         signal.update.emit(0)
         alg.setup({'key': key})
         with open(input_file, mode='rb') as in_file:
@@ -291,6 +325,7 @@ class BaseAlgorithm:
 class AlgorithmConnect:
     reverse_connect = {
         # BaseAlgorithm.vernam_cipher.__doc__: BaseAlgorithm.vernam_cipher
+        RSA.__doc__: RSA,
         DES.__doc__: DES,
         RC4.__doc__: RC4
     }
