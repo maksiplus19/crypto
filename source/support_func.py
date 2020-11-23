@@ -1,7 +1,12 @@
+import random as rnd
 from collections import Iterable
 from typing import Union, List, cast, Any
 
 import numpy as np
+
+from source.part2 import prime_gen
+
+_prime_list = []
 
 
 def bits_to_int(*bits: int) -> int:
@@ -83,3 +88,19 @@ def r_solid_index(s: Union[str, bytes], char: Union[str, bytes]) -> int:
     while i and s[i] == char:
         i -= 1
     return i + 1
+
+
+def compute_prime_list():
+    gen = prime_gen()
+    for _ in range(1000):
+        next(gen)
+    for _ in range(1000):
+        _prime_list.append(next(gen))
+
+
+def get_rnd_prime(seed=None) -> int:
+    if not len(_prime_list):
+        compute_prime_list()
+    if seed is not None:
+        rnd.seed(seed)
+    return rnd.choice(_prime_list)
