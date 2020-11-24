@@ -229,8 +229,7 @@ class RSA(Algo):
         p, q = get_rnd_prime(key), get_rnd_prime()
         n = p * q
         phi_num = (p - 1) * (q - 1)
-        rnd.seed(key)
-        e = phi_num // 2
+        e = 65537
         while (d := inverse_mod(e, phi_num)) is None:
             e -= 1
         m = int.from_bytes(block, 'big', signed=False)
