@@ -8,7 +8,7 @@ from PyQt5.QtCore import Qt, pyqtSignal, QObject
 from PyQt5.QtGui import QIcon
 from PyQt5.QtWidgets import QApplication, QMainWindow, QLineEdit, QFileDialog, QMessageBox, QPushButton
 
-from source.algorithms import AlgorithmConnect, BaseAlgorithm, CryptoMode
+from source.algorithms import AlgorithmConnect, BaseAlgorithm, CryptoMode, Rijndael
 from source.data import ENCRYPTED_FILE_EXTENSION
 from source.signals import UpdateSignal
 from ui.crypto_file_widget import Ui_CryptoWidget
@@ -24,13 +24,17 @@ class MainWindow(QMainWindow, Ui_CryptoWindow):
         self.visible_icon = QIcon('./ui/icons8-eye-24.png')
         self.invisible_icon = QIcon('./ui/icons8-invisible-24.png')
         self.passShowButton.setIcon(self.invisible_icon)
-        self.passShowButton.clicked.connect(self.vis_invis_change)
         for item in AlgorithmConnect.reverse_connect:
             self.algoBox.addItem(item)
         for item in AlgorithmConnect.mode_connect:
             self.modeBox.addItem(item)
-        self.addFile.triggered.connect(self.add_file)
         self.crypto_widget_list = {}
+
+        self.passShowButton.clicked.connect(self.vis_invis_change)
+        self.addFile.triggered.connect(self.add_file)
+        self.algoBox.currentIndexChanged.connect(self.on_algo_change)
+        self.block_size_box.currentIndexChanged.connect(self.on_block_size_change)
+        self.key_size_box.currentIndexChanged.connect(self.on_key_size_change)
 
     def vis_invis_change(self, checked: bool):
         self.passShowButton.setIcon(self.visible_icon if checked else self.invisible_icon)
@@ -105,6 +109,15 @@ class MainWindow(QMainWindow, Ui_CryptoWindow):
             button.setChecked(not state)
             button.setText('Зашифровать')
             return
+        if self.algoBox.currentIndex() == 3 and len(bytearray(key, encoding='utf8')) != Rijndael.KEY_SIZE // 8:
+            QMessageBox.information(self, 'Ошибка длины ключа',
+                                    f'Ожидаемая длина ключа {Rijndael.KEY_SIZE // 8}\n'
+                                    f'Длина введенного ключа {len(bytearray(key, encoding="utf8"))}')
+            button = self.sender().parent().workButton
+            button = cast(QPushButton, button)
+            button.setChecked(not state)
+            button.setText('Зашифровать')
+            return
         widget = self.sender().parent()
         widget = cast(Ui_CryptoWidget, widget)
         signal = UpdateSignal()
@@ -143,6 +156,16 @@ class MainWindow(QMainWindow, Ui_CryptoWindow):
     def remove_crypto_widget(self, file: str):
         self.widgetSpace.removeWidget(self.crypto_widget_list[file])
         self.crypto_widget_list.pop(file)
+
+    def on_algo_change(self, index: int):
+        self.block_size_box.setEnabled(index == 3)
+        self.key_size_box.setEnabled(index == 3)
+
+    def on_block_size_change(self, index: int):
+        Rijndael.BLOCK_SIZE = 128 + 64 * index
+
+    def on_key_size_change(self, index: int):
+        Rijndael.KEY_SIZE = 128 + 64 * index
 
 
 if __name__ == '__main__':

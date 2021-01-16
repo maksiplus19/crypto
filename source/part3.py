@@ -3,6 +3,8 @@ from source.support_func import to_bit_arr
 
 def poly_to_str(n: int) -> str:
     """Напишите функцию, представляющую элемент из GF(256) в полиномиальной форме."""
+    if not n:
+        return '0'
     arr = to_bit_arr(n)
     res = []
     for i, c in enumerate(reversed(arr)):
